@@ -1,0 +1,40 @@
+name: voiceover-probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Guidepup
+        run: npm install --no-audit --no-fund @guidepup/guidepup@0.39.0 @guidepup/setup@0.29.3
+      - name: Set up VoiceOver for automation
+        run: npx @guidepup/setup --ci
+      - name: Probe
+        timeout-minutes: 8
+        run: node probe.mjs 2>&1 | tee probe-${{ matrix.os }}.log
+      - name: Screenshot
+        if: always()
+        run: screencapture -x screen-${{ matrix.os }}.png || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-${{ matrix.os }}
+          path: |
+            probe-${{ matrix.os }}.log
+            screen-${{ matrix.os }}.png
