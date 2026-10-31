@@ -1,0 +1,48 @@
+name: panel-probe
+
+# Does an automated Open press in a sandboxed app's folder panel grant the app
+# access to the chosen folder? panel-probe/run-arms.sh grades four arms.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [panel-probe/**, .github/workflows/panel-probe.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: SIP and OS
+        run: |
+          csrutil status || true
+          sw_vers
+          id -un
+      - name: Build
+        run: panel-probe/build.sh build
+      - name: Run arms
+        timeout-minutes: 10
+        run: panel-probe/run-arms.sh build records 2>&1 | tee records-run.log
+      - name: Logs
+        if: always()
+        run: |
+          mkdir -p records
+          log show --last 15m --style compact --predicate 'subsystem == "dev.probe.a11y.panel"' > records/probe-oslog.txt 2>&1 || true
+          log show --last 15m --style compact --predicate 'process == "tccd" AND (eventMessage CONTAINS "PanelProbe" OR eventMessage CONTAINS "panel-driver" OR eventMessage CONTAINS "osascript")' > records/tccd.txt 2>&1 || true
+          log show --last 15m --style compact --predicate 'eventMessage CONTAINS[c] "dev.probe.a11y.panel" AND (process == "sandboxd" OR process == "kernel")' > records/sandbox.txt 2>&1 || true
+          cp records-run.log records/ 2>/dev/null || true
+          ls -la "$HOME/Library/Containers/dev.probe.a11y.panel/Data/" > records/container-ls.txt 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: panel-probe-${{ matrix.os }}
+          path: records/
