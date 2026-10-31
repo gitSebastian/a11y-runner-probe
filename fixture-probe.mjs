@@ -61,12 +61,14 @@ async function runVariant(variant) {
       repeats = 0;
     }
     last = joined;
-    if (!gearDone && /pop.?up|Hibiki menu/i.test(joined)) {
+    if (!gearDone && /pop.?up|Hibiki menu|menu button|icon-settings/i.test(joined)) {
       gearDone = true;
       // Sebastian, 2026-10-31, on his Mac: the first landing on the gear reads
       // "Hibiki menu"; moving right off it and back LEFT onto it reads
-      // "icon-settings". Revisit twice before the menu and twice after it.
-      for (let k = 0; k < 2; k += 1) {
+      // "icon-settings". Revisit four times before the menu and four after it.
+      // Run 41241504383: on macos-26 the gear is a "menu button" and the
+      // asset name came intermittently (first landing or revisit only).
+      for (let k = 0; k < 4; k += 1) {
         vo("tell vo cursor to move right");
         steps.push({ step: `off${k}`, phrases: await collect() });
         vo("tell vo cursor to move left");
@@ -81,7 +83,7 @@ async function runVariant(variant) {
       steps.push({ step: "menu-down", phrases: await collect(2000) });
       vo("tell vo cursor to perform action");
       steps.push({ step: "menu-close", phrases: await collect(3000) });
-      for (let k = 2; k < 4; k += 1) {
+      for (let k = 4; k < 8; k += 1) {
         vo("tell vo cursor to move right");
         steps.push({ step: `off${k}`, phrases: await collect() });
         vo("tell vo cursor to move left");
