@@ -65,8 +65,13 @@ async function runVariant(variant) {
       gearDone = true;
       vo("tell vo cursor to perform action");
       steps.push({ step: "menu-open", phrases: await collect(2500) });
+      // Run 41237682662: a second perform action on the menu itself left it
+      // open. Step down onto the first item (About) and press it: that picks
+      // the item and closes the menu, as a person does.
+      vo("tell vo cursor to move down");
+      steps.push({ step: "menu-down", phrases: await collect(2000) });
       vo("tell vo cursor to perform action");
-      steps.push({ step: "menu-close", phrases: await collect(2500) });
+      steps.push({ step: "menu-close", phrases: await collect(3000) });
     }
   }
   vo("quit");

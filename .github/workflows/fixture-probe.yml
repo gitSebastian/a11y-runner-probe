@@ -15,6 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, macos-26]
+        lang: [en, fr]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
@@ -26,19 +27,25 @@ jobs:
         run: npm install --no-audit --no-fund @guidepup/setup@0.29.3
       - name: Set up VoiceOver for automation
         run: npx @guidepup/setup setup --ci
+      - name: System language
+        if: matrix.lang == 'fr'
+        run: |
+          defaults write -g AppleLanguages -array fr-FR en
+          defaults write -g AppleLocale fr_FR
+          defaults read -g AppleLanguages
       - name: Build fixture
         run: fixture/build.sh build
       - name: Probe
         timeout-minutes: 15
-        run: node fixture-probe.mjs build/Fixture.app 2>&1 | tee fixture-${{ matrix.os }}.log
+        run: node fixture-probe.mjs build/Fixture.app 2>&1 | tee fixture-${{ matrix.os }}-${{ matrix.lang }}.log
       - name: Screenshot
         if: always()
-        run: screencapture -x screen-${{ matrix.os }}.png || true
+        run: screencapture -x screen-${{ matrix.os }}-${{ matrix.lang }}.png || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: fixture-${{ matrix.os }}
+          name: fixture-${{ matrix.os }}-${{ matrix.lang }}
           path: |
-            fixture-${{ matrix.os }}.log
+            fixture-${{ matrix.os }}-${{ matrix.lang }}.log
             transcript-*.json
-            screen-${{ matrix.os }}.png
+            screen-${{ matrix.os }}-${{ matrix.lang }}.png
