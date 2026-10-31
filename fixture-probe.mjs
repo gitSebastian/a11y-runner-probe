@@ -63,6 +63,15 @@ async function runVariant(variant) {
     last = joined;
     if (!gearDone && /pop.?up|Hibiki menu/i.test(joined)) {
       gearDone = true;
+      // Sebastian, 2026-10-31, on his Mac: the first landing on the gear reads
+      // "Hibiki menu"; moving right off it and back LEFT onto it reads
+      // "icon-settings". Revisit twice before the menu and twice after it.
+      for (let k = 0; k < 2; k += 1) {
+        vo("tell vo cursor to move right");
+        steps.push({ step: `off${k}`, phrases: await collect() });
+        vo("tell vo cursor to move left");
+        steps.push({ step: `back${k}`, phrases: await collect() });
+      }
       vo("tell vo cursor to perform action");
       steps.push({ step: "menu-open", phrases: await collect(2500) });
       // Run 41237682662: a second perform action on the menu itself left it
@@ -72,6 +81,12 @@ async function runVariant(variant) {
       steps.push({ step: "menu-down", phrases: await collect(2000) });
       vo("tell vo cursor to perform action");
       steps.push({ step: "menu-close", phrases: await collect(3000) });
+      for (let k = 2; k < 4; k += 1) {
+        vo("tell vo cursor to move right");
+        steps.push({ step: `off${k}`, phrases: await collect() });
+        vo("tell vo cursor to move left");
+        steps.push({ step: `back${k}`, phrases: await collect() });
+      }
     }
   }
   vo("quit");
