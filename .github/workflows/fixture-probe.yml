@@ -1,0 +1,44 @@
+name: fixture-probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [fixture/**, fixture-probe.mjs, .github/workflows/fixture-probe.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Guidepup setup
+        run: npm install --no-audit --no-fund @guidepup/setup@0.29.3
+      - name: Set up VoiceOver for automation
+        run: npx @guidepup/setup setup --ci
+      - name: Build fixture
+        run: fixture/build.sh build
+      - name: Probe
+        timeout-minutes: 15
+        run: node fixture-probe.mjs build/Fixture.app 2>&1 | tee fixture-${{ matrix.os }}.log
+      - name: Screenshot
+        if: always()
+        run: screencapture -x screen-${{ matrix.os }}.png || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fixture-${{ matrix.os }}
+          path: |
+            fixture-${{ matrix.os }}.log
+            transcript-*.json
+            screen-${{ matrix.os }}.png
