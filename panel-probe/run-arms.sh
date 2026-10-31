@@ -18,9 +18,19 @@ SUMMARY="$RECORDS/verdicts.txt"
 : > "$SUMMARY"
 PREVIOUS="-"
 
-# Screenshots only on a GitHub runner. On a person's Mac, screencapture raises a
-# Screen Recording permission box for the calling program (seen 2026-10-31).
-shot() { if [ -n "${GITHUB_ACTIONS:-}" ]; then screencapture -x "$1" || true; fi; }
+# shot <path> <pid>. On a GitHub runner: screencapture of the whole screen. On a
+# person's Mac, screencapture raises a Screen Recording permission box for the
+# calling program (seen 2026-10-31), so there it uses Peekaboo, which already
+# holds that grant, and captures only the probe app's window; without Peekaboo
+# it takes no screenshot. --capture-engine classic: the default engine refused on
+# 2026-10-31 because Claude.app might hold ScreenCaptureKit at the same time.
+shot() {
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    screencapture -x "$1" || true
+  elif command -v peekaboo >/dev/null 2>&1; then
+    peekaboo see --pid "$2" --no-elements --capture-engine classic --path "$1" >/dev/null 2>&1 || true
+  fi
+}
 
 note() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$RECORDS/driver.log"; }
 
@@ -104,7 +114,7 @@ run_arm() { # run_arm <ARM> <route key|ax> <action open|cancel>
   sleep 3
   "$DRIVER" windows > "$RECORDS/windows-$arm.txt" 2>&1
   "$DRIVER" dump "$pid" > "$RECORDS/dump-$arm.txt" 2>&1
-  shot "$RECORDS/panel-$arm.png"
+  shot "$RECORDS/panel-$arm.png" "$pid"
 
   local press_out
   press_out="$(route_press "$route" "$pid" "$action" 2>&1)"
@@ -119,7 +129,7 @@ run_arm() { # run_arm <ARM> <route key|ax> <action open|cancel>
     # The panel did not answer. Its own log says it is still open (PANEL-SHOWN,
     # no RESPONSE, no PANEL-TIMEOUT). Tail: the cancel twin by the same route,
     # so "the panel ignores this press" is told apart from "input does not reach it".
-    shot "$RECORDS/ignored-$arm.png"
+    shot "$RECORDS/ignored-$arm.png" "$pid"
     "$DRIVER" windows > "$RECORDS/windows-ignored-$arm.txt" 2>&1
     if [ "$action" = open ]; then
       note "no completion in 30 s; sending the cancel twin by $route"
