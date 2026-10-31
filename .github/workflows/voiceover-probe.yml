@@ -24,7 +24,7 @@ jobs:
       - name: Install Guidepup
         run: npm install --no-audit --no-fund @guidepup/guidepup@0.39.0 @guidepup/setup@0.29.3
       - name: Set up VoiceOver for automation
-        run: npx @guidepup/setup --ci
+        run: npx @guidepup/setup setup --ci --macos-record
       - name: Probe
         timeout-minutes: 8
         run: node probe.mjs 2>&1 | tee probe-${{ matrix.os }}.log
@@ -38,3 +38,4 @@ jobs:
           path: |
             probe-${{ matrix.os }}.log
             screen-${{ matrix.os }}.png
+            recordings/
