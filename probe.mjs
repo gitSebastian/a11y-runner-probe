@@ -1,12 +1,12 @@
-// VoiceOver-on-a-hosted-runner probe (apple-dev, 2026-10-31).
-// Question: on GitHub's macOS runners, can an automated job start VoiceOver,
-// move it through a native app, and read back what it says as text?
-// Two arms, so a failure points at the tool or at the platform:
-//   G: Guidepup's VoiceOver driver (AppleScript underneath, polled phrases).
-//   R: raw osascript to VoiceOver, the shape apple-dev's own driver would use.
-// Target: TextEdit (a native AppKit app), brought to the front first.
-import { voiceOver } from "@guidepup/guidepup";
+// VoiceOver-on-a-hosted-runner probe (apple-dev, 2026-10-31), round 2.
+// Round 1 (run 41234915775): raw AppleScript started VoiceOver and read its
+// speech on macos-15 and macos-26, but the text read was an Automation box
+// raised by our own "tell TextEdit"; Guidepup's start() failed on both.
+// Round 2: open TextEdit by `open -a` with a file (no Apple Event to TextEdit,
+// so no Automation box), find the front app with lsappinfo (no Apple Event),
+// and drive only VoiceOver. Question: does VoiceOver read the app's own text?
 import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 
 const sh = (cmd, args) => {
   try {
@@ -17,49 +17,38 @@ const sh = (cmd, args) => {
 };
 const osa = (script) => sh("osascript", ["-e", script]);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const front = () =>
-  osa('tell application "System Events" to get name of first process whose frontmost is true');
+const front = () => sh("/bin/sh", ["-c", "lsappinfo info -only name `lsappinfo front`"]);
+const MARK = "Probe text for VoiceOver";
 
-const result = { os: sh("sw_vers", ["-productVersion"]), arms: {} };
-
-osa('tell application "TextEdit" to activate');
-osa('tell application "TextEdit" to make new document with properties {text:"Probe text for VoiceOver."}');
-await sleep(2000);
+writeFileSync("probe.txt", MARK + ".\n");
+const result = { os: sh("sw_vers", ["-productVersion"]) };
+sh("open", ["-a", "TextEdit", "probe.txt"]);
+await sleep(4000);
 result.frontBefore = front();
 
-// Arm G
-try {
-  await voiceOver.start();
-  const phrases = [];
-  for (let i = 0; i < 8; i += 1) {
-    await voiceOver.next();
-    phrases.push(await voiceOver.lastSpokenPhrase());
-  }
-  result.arms.G = {
-    ok: phrases.some((p) => p && p.length > 0),
-    phrases,
-    log: await voiceOver.spokenPhraseLog(),
-    front: front(),
-  };
-} catch (error) {
-  result.arms.G = { ok: false, error: String(error && error.stack ? error.stack : error) };
-}
+sh("open", ["-a", "VoiceOver"]);
+await sleep(5000);
 
-// Arm R, with VoiceOver still running from arm G
-const raw = [];
-for (let i = 0; i < 6; i += 1) {
-  osa('tell application "VoiceOver" to tell vo cursor to move right');
+const phrases = [];
+const read = async () => {
   await sleep(1200);
-  raw.push(osa('tell application "VoiceOver" to return content of last phrase'));
+  phrases.push(osa('tell application "VoiceOver" to return content of last phrase'));
+};
+await read();
+for (let i = 0; i < 10; i += 1) {
+  osa('tell application "VoiceOver" to tell vo cursor to move right');
+  await read();
 }
-result.arms.R = { ok: raw.some((p) => p && !p.startsWith("ERROR")), phrases: raw, front: front() };
-
-try {
-  await voiceOver.stop();
-} catch (error) {
-  result.stopError = String(error);
-}
+osa('tell application "VoiceOver" to tell vo cursor to move to first item');
+await read();
+result.phrases = phrases;
+result.frontAfter = front();
+result.sawAppText = phrases.some((p) => p.includes(MARK) || p.includes("probe.txt"));
+result.sawPermissionBox = phrases.some((p) => p.includes("wants access to control"));
+osa('tell application "VoiceOver" to quit');
 
 console.log("PROBE-RESULT " + JSON.stringify(result, null, 2));
-const verdict = result.arms.G.ok || result.arms.R.ok ? "VOICEOVER-READABLE" : "VOICEOVER-NOT-READABLE";
-console.log("VERDICT " + verdict + " G=" + result.arms.G.ok + " R=" + result.arms.R.ok);
+console.log(
+  "VERDICT " + (result.sawAppText ? "APP-TEXT-READ" : "APP-TEXT-NOT-READ") +
+  " box=" + result.sawPermissionBox,
+);
