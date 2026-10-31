@@ -99,16 +99,34 @@ struct PanelStandIn: View {
     }
 }
 
-@main
-struct FixtureApp: App {
-    init() {
-        NSApplication.shared.setActivationPolicy(.regular)
-    }
+// AppKit lifecycle with an explicit window: run 41236703586 showed a SwiftUI
+// WindowGroup built this way (swiftc, no Xcode project) opened no window at
+// all ("Fixture has no windows"), on the runners and on a local Mac alike.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var window: NSWindow?
 
-    var body: some Scene {
-        WindowGroup("Fixture \(Variant.current.rawValue)") {
-            PanelStandIn()
-                .onAppear { NSApplication.shared.activate(ignoringOtherApps: true) }
-        }
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 200, y: 200, width: 320, height: 200),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Fixture \(Variant.current.rawValue)"
+        window.contentView = NSHostingView(rootView: PanelStandIn())
+        window.makeKeyAndOrderFront(nil)
+        self.window = window
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+@main
+enum FixtureMain {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.setActivationPolicy(.regular)
+        app.run()
     }
 }
