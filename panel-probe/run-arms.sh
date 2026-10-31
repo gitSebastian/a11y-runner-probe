@@ -18,6 +18,10 @@ SUMMARY="$RECORDS/verdicts.txt"
 : > "$SUMMARY"
 PREVIOUS="-"
 
+# Screenshots only on a GitHub runner. On a person's Mac, screencapture raises a
+# Screen Recording permission box for the calling program (seen 2026-10-31).
+shot() { if [ -n "${GITHUB_ACTIONS:-}" ]; then screencapture -x "$1" || true; fi; }
+
 note() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$RECORDS/driver.log"; }
 
 # wait_for <file> <tag> <seconds>: true when a line with " <tag>" appears
@@ -100,7 +104,7 @@ run_arm() { # run_arm <ARM> <route key|ax> <action open|cancel>
   sleep 3
   "$DRIVER" windows > "$RECORDS/windows-$arm.txt" 2>&1
   "$DRIVER" dump "$pid" > "$RECORDS/dump-$arm.txt" 2>&1
-  screencapture -x "$RECORDS/panel-$arm.png" || true
+  shot "$RECORDS/panel-$arm.png"
 
   local press_out
   press_out="$(route_press "$route" "$pid" "$action" 2>&1)"
@@ -115,7 +119,7 @@ run_arm() { # run_arm <ARM> <route key|ax> <action open|cancel>
     # The panel did not answer. Its own log says it is still open (PANEL-SHOWN,
     # no RESPONSE, no PANEL-TIMEOUT). Tail: the cancel twin by the same route,
     # so "the panel ignores this press" is told apart from "input does not reach it".
-    screencapture -x "$RECORDS/ignored-$arm.png" || true
+    shot "$RECORDS/ignored-$arm.png"
     "$DRIVER" windows > "$RECORDS/windows-ignored-$arm.txt" 2>&1
     if [ "$action" = open ]; then
       note "no completion in 30 s; sending the cancel twin by $route"
